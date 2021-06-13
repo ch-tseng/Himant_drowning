@@ -28,14 +28,23 @@ th_iou_tracking = cfg.getfloat("tracking", "th_iou_tracking")
 p_font_size = cfg.getfloat("indicatorDisplay", "p_font_size")
 line_border = cfg.getint("indicatorDisplay", "line_border")
 
+moving_avg = cfg.getint("drowningGlobal", "moving_frames_avg")
+landline_under_y = cfg.getfloat("drowningGlobal", "landline_under_y")
+counter_type = cfg.getint("drowningGlobal", "counter_type")
+
 #Drowning detect
 draw_marks = cfg.getboolean("drowningDetect", "draw_marks")
-landline_under_y = cfg.getfloat("drowningDetect", "landline_under_y")
-th_hot_list = cfg.getfloat("drowningDetect", "th_hot_list")
+th_add_drownlist = cfg.getfloat("drowningDetect", "th_add_drownlist")
+poses_drowning = cfg.getint("drowningDetect", "poses_drowning")
 drown_sure_frames = cfg.getint("drowningDetect", "drown_sure_frames")
+drown_sure_seconds = cfg.getint("drowningDetect", "drown_sure_seconds")
 
-#pre-drowing detect
-keep_detect_frames = 30  # fps * seconds
+#Pre-drowing detect
+predraw_marks = cfg.getboolean("predrowningDetect", "predraw_marks")
+th_add_predrownlist = cfg.getfloat("predrowningDetect", "th_add_predrownlist")
+poses_predrowning = cfg.getint("predrowningDetect", "poses_predrowning")
+predrown_sure_frames = cfg.getint("predrowningDetect", "predrown_sure_frames")
+predrown_sure_seconds = cfg.getint("predrowningDetect", "predrown_sure_seconds")
 
 # Parameters for system, you don't have to change them
 #===================================================================================
@@ -70,7 +79,15 @@ else:
 
 
 TRACK = OBJTRACK(p_font_size=p_font_size, line_border=line_border)
-DROWN = DROWNING(moving_avg=3)
+DROWN = DROWNING(moving_avg=moving_avg, counter_type=counter_type)
+if counter_type == 0:
+    drown_sure = drown_sure_seconds
+    predrown_sure = predrown_sure_seconds
+else:
+    predrown_sure = predrown_sure_seconds
+    prepredrown_sure = prepredrown_sure_seconds
+
+
 #===================================================================================
 
 if __name__ == "__main__":
@@ -102,7 +119,8 @@ if __name__ == "__main__":
         #print(tracking_info)
         #body_data = TRACK.get_data()
         DROWN.punch(tracking_info)
-        img = DROWN.detect_drowning(img, th_hot_list=th_hot_list, drown_sure_frames=drown_sure_frames)
+        img = DROWN.detect_drowning(img, th_hot_list=th_add_drownlist, drown_sure=drown_sure, poses_required=poses_drowning)
+        img = DROWN.detect_predrowning(img, th_hot_list=th_add_predrownlist, predrown_sure=predrown_sure, poses_required=poses_predrowning)
         '''
         print('IDs', TRACK.IDs)
         print('alignment', TRACK.alignment)

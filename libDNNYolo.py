@@ -15,7 +15,7 @@ class opencvYOLO:
         self.score = score
         self.nms = nms
 
-        self.land_y = 0
+        self.land_y = 0.0
 
         self.inpWidth = self.imgsize[0]
         self.inpHeight = self.imgsize[1]
@@ -206,6 +206,8 @@ class opencvYOLO:
             bboxes, names, cids, scores = [], [], [], []
             for p in predictions:
                 xmin, xmax, ymin, ymax = int(p['xmin']), int(p['xmax']), int(p['ymin']), int(p['ymax'])
+                if ymin<self.land_y: continue
+
                 bboxes.append((xmin,ymin,xmax-xmin,ymax-ymin))
                 scores.append(float(p['confidence']))
                 names.append(p['name'])

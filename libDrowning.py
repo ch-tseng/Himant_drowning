@@ -1,15 +1,17 @@
 import statistics
 import cv2
+import time
 
 # DROWNING.now_actions / DROWNING.last_actions for current & last frames
 class DROWNING:
-    def __init__(self, moving_avg = 3 ):
+    def __init__(self, moving_avg = 3, counter_type=0 ):
         self.moving_avg = moving_avg
         self.now = []
         self.last = []
         self.now_actions = {}
         self.drowning_hotlist = {}
         self.predrowning_hotlist = {}
+        self.counter_type = counter_type
 
     def vh_move_ratio(self, p1, p2):
         x_move = abs(p2[0] - p1[0])
@@ -165,14 +167,12 @@ class DROWNING:
             now_summarize.update( { ID: [now_pose, now_head, now_body, now_lbody, now_ubody, now_iou]} )
 
         self.now_actions = now_summarize
-        print(now_summarize)
+        #print(now_summarize)
 
-    def detect_drowning(self, img, th_hot_list, drown_sure_frames):
+    def detect_drowning(self, img, th_hot_list, drown_sure, poses_required):
         now_actions = self.now_actions
         last_actions = self.last_actions
-
-        #print('last', last_actions)
-        #print('now', now_actions)
+        hotlist = self.drowning_hotlist
 
         for ID in now_actions:
             now_pose = now_actions[ID][0]
@@ -181,6 +181,17 @@ class DROWNING:
             now_lbody = now_actions[ID][3]
             now_ubody = now_actions[ID][4]
             now_iou = now_actions[ID][5]
+
+            now_time = time.time()
+            if ID in hotlist:
+                if self.counter_type == 0:
+                    counts = now_time - hotlist[ID][1]
+                else:
+                    counts = hotlist[ID][0]
+
+                if counts > drown_sure:
+                    bcolor = (0,0,255)
+                    cv2.putText(img,  'drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
 
             if ID in last_actions:
                 last_pose = last_actions[ID][0]
@@ -193,31 +204,142 @@ class DROWNING:
                 now_body_centroid = ( now_body[0]+int(now_body[2]/2) , now_body[1]+int(now_body[3]/2) )
                 last_body_centroid = ( last_body[0]+int(last_body[2]/2) , last_body[1]+int(last_body[3]/2) )
 
-                print('now_body_centroid, last_body_centroid', (now_body_centroid,last_body_centroid))
+                #print('now_body_centroid, last_body_centroid', (now_body_centroid,last_body_centroid))
                 y_movement = now_body_centroid[1] - last_body_centroid[1]
                 x_movement = now_body_centroid[0] - last_body_centroid[0]
                 ratio_ymove = (abs(y_movement) / now_body[3]) * 100
                 ratio_xmove = (abs(x_movement) / now_body[2]) * 100
 
-                print(ID, 'move ratio', ratio_xmove,ratio_ymove)
+                #print(ID, 'Drowning move ratio', ratio_xmove+ratio_ymove)
 
-                hotlist = self.drowning_hotlist
-                if now_pose is 0 and (ratio_xmove+ratio_ymove)<th_hot_list:  #register or update the count
+                if (now_pose == poses_required or poses_required==2) and (ratio_xmove+ratio_ymove)<th_hot_list:  #register or update the count
                     if ID in hotlist:
                         counts = hotlist[ID][0] + 1
+                        start_timer = hotlist[ID][1]
                     else:
                         counts = 0
+                        start_timer = now_time
 
-                    if counts> drown_sure_frames:
+                    yn_drown = False
+                    if self.counter_type == 1:  #Drowning counter by using frames
+                        if counts>drown_sure:
+                            yn_drown = True
+
+                    else:  # Drowning counter is timer
+                        if time.time() - start_timer > drown_sure:
+                            yn_drown = True
+
+                    if yn_drown is True:
                         bcolor = (0,0,255)
-                        cv2.putText(img,  'Drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
+                        cv2.putText(img,  'drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
                     else:
                         bcolor = (0,255,255)
 
                     cv2.rectangle(img, (now_body[0],now_body[1]), (now_body[0]+now_body[2], now_body[1]+now_body[3]), bcolor, 1)
-                    hotlist.update( { ID:[counts, now_body] })
+                    hotlist.update( { ID:[counts, start_timer, now_body] })
 
                 elif ID in hotlist:
-                    hotlist.pop(ID)
+                    counts = hotlist[ID][0] + 1
+                    start_timer = hotlist[ID][1]
+
+                    if self.counter_type == 1:
+                        if counts<drown_sure:
+                            hotlist.pop(ID)
+                    else:
+                        if now_time - start_timer < drown_sure:
+                            hotlist.pop(ID)
+
+                self.drowning_hotlist = hotlist
+
+        return img
+
+    def detect_predrowning(self, img, th_hot_list, predrown_sure, poses_required):
+        now_actions = self.now_actions
+        last_actions = self.last_actions
+
+        hotlist = self.predrowning_hotlist
+        #print('last', last_actions)
+        #print('now', now_actions)
+
+        for ID in now_actions:
+            now_pose = now_actions[ID][0]
+            now_head = now_actions[ID][1]
+            now_body = now_actions[ID][2]
+            now_lbody = now_actions[ID][3]
+            now_ubody = now_actions[ID][4]
+            now_iou = now_actions[ID][5]
+
+            now_time = time.time()
+            if ID in hotlist:
+                if self.counter_type == 0:
+                    counts = now_time - hotlist[ID][1]
+                else:
+                    counts = hotlist[ID][0]
+
+                if counts> predrown_sure:
+                    bcolor = (0,0,255)
+                    cv2.putText(img,  'pre-drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
+            
+            if ID in last_actions:
+                last_pose = last_actions[ID][0]
+                last_head = last_actions[ID][1]
+                last_body = last_actions[ID][2]
+                last_lbody = last_actions[ID][3]
+                last_ubody = last_actions[ID][4]
+                last_iou = last_actions[ID][5]
+
+                now_body_centroid = ( now_body[0]+int(now_body[2]/2) , now_body[1]+int(now_body[3]/2) )
+                last_body_centroid = ( last_body[0]+int(last_body[2]/2) , last_body[1]+int(last_body[3]/2) )
+
+                y_movement = abs( (now_body_centroid[1] - last_body_centroid[1]) / last_body[2])
+                x_movement = abs( (now_body_centroid[0] - last_body_centroid[0]) / last_body[3])
+                #if x_movement == 0: x_movement = 1.0
+
+                ratio_move = y_movement - x_movement
+                if (ratio_move>-0.05 and ratio_move<0.05):
+                    ratio_move = th_hot_list + 1.0
+
+
+                #print(ID, 'y_movement {}, x_movement {}, ratio_move {}, th_hot_list {}'.format(y_movement, x_movement, ratio_move, th_hot_list))
+
+                if (now_pose == poses_required or poses_required==2) and ratio_move>th_hot_list:  #register or update the count
+                    if ID in hotlist:
+                        counts = hotlist[ID][0] + 1
+                        start_timer = hotlist[ID][1]
+                    else:
+                        counts = 1
+                        start_timer = now_time
+
+                    yn_drown = False
+                    if self.counter_type == 1:  #Drowning counter by using frames
+                        if counts> predrown_sure:
+                            yn_drown = True
+                    else:  # Drowning counter is timer
+                        if now_time - start_timer > predrown_sure:
+                            yn_drown = True
+
+                    if yn_drown is True:
+                        bcolor = (0,0,255)
+                        cv2.putText(img,  'pre-drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
+                    else:
+                        bcolor = (0,255,255)
+
+                    cv2.rectangle(img, (now_body[0],now_body[1]), (now_body[0]+now_body[2], now_body[1]+now_body[3]), bcolor, 1)
+                    hotlist.update( { ID:[counts, start_timer, now_body] })
+                    #print('test -->', ID, counts, start_timer, now_time, ' = ', now_time-start_timer)
+
+                elif ID in hotlist:
+                    counts = hotlist[ID][0] + 1
+                    start_timer = hotlist[ID][1]
+
+                    if self.counter_type == 1:
+                        if counts<predrown_sure:
+                            hotlist.pop(ID)
+                    else:
+                        if now_time - start_timer < predrown_sure:
+                            print('TEST pop it, ratio_move=',ratio_move) 
+                            hotlist.pop(ID)
+
+                self.predrowning_hotlist = hotlist
 
         return img

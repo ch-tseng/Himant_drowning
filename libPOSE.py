@@ -68,7 +68,7 @@ class POSE:
 
         if angel == 0:
             angel = int(self.__get_angle(p1, p2, p3))
-            print('angel', angel)
+            #print('angel', angel)
             if mark_draw is True:
                 image = cv2.line(image, p2, p3, (255, 0, 0), self.line_border)
                 image = cv2.line(image, p1, p2, (0, 255, 0), self.line_border+1)
