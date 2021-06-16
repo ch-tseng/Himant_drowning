@@ -275,11 +275,11 @@ class DROWNING:
                     counts = now_time - hotlist[ID][1]
                 else:
                     counts = hotlist[ID][0]
-
+                '''
                 if counts> predrown_sure:
                     bcolor = (0,0,255)
                     cv2.putText(img,  'pre-drowning!', (now_body[0],now_body[1]-30), cv2.FONT_HERSHEY_SIMPLEX, 0.85,  bcolor, 2, cv2.LINE_AA)
-            
+                '''
             if ID in last_actions:
                 last_pose = last_actions[ID][0]
                 last_head = last_actions[ID][1]
